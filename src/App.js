@@ -1,26 +1,17 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
-import Names from './components/Names'
-
-import Filter from './components/Filter'
+import Note from './components/Note'
+import noteService from './services/notes'
 
 function App() {
   const [notes, setNotes] = useState([])
   const [newNote, setNewNote] = useState('')
-  const [persons, setPersons] = useState([]) //persons,  name convention, contact as info of the person[naming vars and objects are important to remember]
-  //    { name: 'Arto Hellas', number: '040-123456' },
-  // { name: 'Ada Lovelace', number: '39-44-5323523' },
-  // { name: 'Dan Abramov', number: '12-43-234345' },
-  // { name: 'Mary Poppendieck', number: '39-23-6423122' } [IMPORTANT] NO need for these objects since I added the objects into db.json and used useEffect from server to add to
-  //useState of persons!!!
-  const [newName, setNewName] = useState('') //better to put these two lines as one grouped object
-  const [newNum, setNewNum] = useState()
+  const [showAll, setShowAll] = useState(false)
   useEffect(() => {
-    console.log('effect')
-    axios.get('http://localhost:3001/persons').then((response) => {
-      console.log('promise fulfilled')
-      setPersons(response.data)
-    })
+    noteService
+      .getAll()
+      .then(initialNotes => {
+        setNotes(initialNotes)
+      })
   }, []) //first useEffect paramater is the function, 2nd is the frequency of this function(like when and how many times to run)
   //--2nd method for this useEffect--
   // useEffect(()=> {
@@ -31,67 +22,71 @@ function App() {
   //   const promise = axios.get('http://localhost:3001/notes')
   //   promise.then(eventHandler)
   // },[])
-  console.log(persons)
+
   console.log('render', notes.length, 'notes')
 
-  const addContacts = (event) => {
-    event.preventDefault()
-    console.log(persons[0].name)
-    if (persons.some((person) => person.name === newName)) {
-      console.log('test')
-      return alert(`${newName} is already added to phonebook`)
-    }
-    const personsObject = {
-      name: newName,
-      number: newNum,
-    }
-    setPersons(persons.concat(personsObject))
-    setNewName('')
-    setNewNum('')
+
+  const toggleImportanceOf = id => {
+    const note = notes.find(n => n.id === id)
+    const changedNote = { ...note, important: !note.important }//this clones the exact old note execept the important prop changed one
+    //the var above is just a shallow copy, values in it will be the same as the old object
+
+    noteService
+      .update(id, changedNote)
+      .then(returnedNote => {
+        setNotes(notes.map(note => note.id !== id ? note : returnedNote))
+      })
+      .catch(error => {
+        alert(`the note '${note.content}' was already deleted from server`)
+      setNotes(notes.filter(n=> n.id!==id))
+      })
   }
-  // const addNote = (e) => {
-  //   e.preventDefault()
-  //   const noteObject = {
-  //     content: newNote,
-  //     date: new Date(),
-  //     important: Math.random() < 0.5,
-  //   }
-  //   axios.post('http://localhost:3001/notes', noteObject).then((response) => {
-  //     setNotes(notes.concat(response.data))
-  //     setNewNote('')
-  //   })
-  // }
+
+  const addNote = (event) => {
+    event.preventDefault()
+    const noteObject = {
+      content: newNote,
+      date: new Date().toISOString(),
+      important: Math.random() > 0.5
+    }
+
+    noteService
+      .create(noteObject)
+      .then(returnedNote => {
+        setNotes(notes.concat(returnedNote))
+        setNewNote('')
+      // axios.post('http://localhost:3001/notes', noteObject).then((response) => {
+      //   setNotes(notes.concat(response.data))
+      //   setNewNote('')   [IMPORTANT!!!] we are using service note module to control the backend comms for convinience
+    })
+  }
+
+  const handleNoteChange = (event) => {
+    console.log(event.target.value)
+    setNewNote(event.target.value)
+  }
+  const notesToShow = showAll ?
+    notes
+    : notes.filter(note => note.important)
   return (
     <div>
-      <h1>Phonebook</h1>
+      <h1>Notes</h1>
 
-      <h2>Add A New Contact</h2>
-      <form onSubmit={addContacts}>
-        <div>
-          name:{' '}
-          <input
-            value={newName}
-            onChange={(e) => {
-              setNewName(e.target.value)
-            }}
-          />
-        </div>
-        <div>
-          number:{' '}
-          <input
-            value={newNum}
-            onChange={(e) => {
-              setNewNum(e.target.value)
-            }}
-          />
-        </div>
-        <div>
-          <button type='submit'>add</button>
-        </div>
+      <div>
+        <button onClick={() => setShowAll(!showAll)}>
+          show{showAll ? 'important' : 'all'}
+        </button>
+      </div>
+      <ul>
+        {notesToShow.map(note =>
+          <Note key={note.id} note={note} toggleImportance={() => toggleImportanceOf(note.id)} />)}
+      </ul>
+      <form onSubmit={addNote}>
+        <input value={newNote}
+          onChange={handleNoteChange} />
+        <button type='submit'>save</button>
       </form>
-      <h2>Numbers</h2>
-      <Filter persons={persons} />
-      {/* breaking each component to do it own thing */}
+
     </div>
   )
 }
